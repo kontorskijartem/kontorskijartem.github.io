@@ -74,6 +74,11 @@ def build(articles_dir, out_dir, cfg, base):
             if f.is_file() and f.name != ".gitkeep":
                 shutil.copy(f, out / f.name)
     (out / ".nojekyll").write_text("")
+    token = cfg.get("zen_verification", "")
+    if token:
+        (out / f"zen_{token}.html").write_text(
+            f'<meta name="zen-verification" content="{token}" />\n', encoding="utf-8")
+        cfg["_verify_meta"] = f'<meta name="zen-verification" content="{token}">\n'
 
     items = sorted(
         (parse_article(p) for p in Path(articles_dir).glob("*.md")),
@@ -89,13 +94,15 @@ def build(articles_dir, out_dir, cfg, base):
                 f'{a["html"]}')
         desc = html.escape(a.get("description", ""), quote=True)
         (out / "articles" / f"{a['slug']}.html").write_text(
-            PAGE.format(title=html.escape(a["title"]), description=desc, head_extra="", body=body),
+            PAGE.format(title=html.escape(a["title"]), description=desc,
+                        head_extra=cfg.get("_verify_meta", ""), body=body),
             encoding="utf-8")
 
     links = "".join(
         f'<li><a href="{a["url"]}">{html.escape(a["title"])}</a> <time>{a["when"].strftime("%d.%m.%Y")}</time></li>'
         for a in items)
-    head = f'<link rel="alternate" type="application/rss+xml" title="RSS" href="{base}/rss.xml">\n'
+    head = (cfg.get("_verify_meta", "")
+            + f'<link rel="alternate" type="application/rss+xml" title="RSS" href="{base}/rss.xml">\n')
     (out / "index.html").write_text(
         PAGE.format(title=html.escape(cfg["title"]), description=html.escape(cfg["description"], quote=True),
                     head_extra=head,
