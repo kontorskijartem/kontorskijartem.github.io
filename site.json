@@ -1,0 +1,11 @@
+{
+  "base_url": "https://kontorskijartem.github.io",
+  "title": "За щитом закона",
+  "description": "Судебная практика и права граждан простым языком: квартиры, наследство, пенсии, ЖКХ.",
+  "defaults": {
+    "draft": true,
+    "format": "format-article",
+    "index": "index",
+    "comments": "comment-all"
+  }
+}
