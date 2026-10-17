@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Market Day — English</title>
+<meta name="description" content="Тренажёр английского по лекциям: экономика и ИИ.">
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#1c2333;--muted:#667085;--line:#e3e7ef;--accent:#2563eb;--accent-ink:#fff;--ok:#15803d;--okbg:#e6f6ec;--bad:#b42318;--badbg:#fdeceb}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#0e1321;--card:#161d2f;--ink:#e7ebf4;--muted:#98a2b3;--line:#2a3347;--accent:#6ea8ff;--accent-ink:#0b1220;--ok:#4ade80;--okbg:#12301f;--bad:#ff8a80;--badbg:#3a1a1a}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+h1{font-size:22px;margin:0}
+.stats{display:flex;gap:8px;font-weight:600}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.muted{color:var(--muted);font-size:14px}
+.pack-title{font-weight:700;font-size:18px;margin:0 0 4px}
+button{font:inherit;cursor:pointer;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:12px 14px;min-height:44px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.small{min-height:36px;padding:6px 10px;font-size:14px}
+button:disabled{opacity:.5;cursor:default}
+button.opt{display:block;width:100%;text-align:left;margin-bottom:8px}
+button.opt.right{background:var(--okbg);border-color:var(--ok)}
+button.opt.wrong{background:var(--badbg);border-color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 auto}
+input,textarea{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+textarea{min-height:180px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0 14px}
+.bar>div{height:100%;background:var(--accent);width:0;transition:width .3s}
+.prompt{font-size:14px;color:var(--muted);margin-bottom:6px}
+.sentence{font-size:20px;line-height:1.5;margin:6px 0 14px}
+.gap{color:var(--accent);font-weight:700}
+.fb{min-height:24px;margin-top:10px;font-weight:600}
+.fb.ok{color:var(--ok)}
+.fb.bad{color:var(--bad)}
+.tip{font-weight:400;color:var(--muted);font-size:15px;margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.chip{min-height:40px;padding:8px 12px}
+.answer-area{min-height:52px;border:1px dashed var(--line);border-radius:12px;padding:8px;display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.hidden{display:none !important}
+.screen{display:none}
+.screen.on{display:block}
+ul.vocab{padding-left:18px;margin:8px 0}
+ul.vocab li{margin-bottom:8px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;overflow-x:auto;font-size:13px}
+.err{color:var(--bad);font-weight:600;margin-top:8px;min-height:20px}
+@media (max-width:420px){h1{font-size:19px}.sentence{font-size:18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Market Day</h1>
+  <div class="stats"><span class="pill" id="capitalPill">$ 0</span><span class="pill" id="streakPill" hidden></span></div>
+</header>
+
+<section id="scrHome" class="screen on">
+  <div class="card">
+    <p class="muted" style="margin:0">Каждый день — один пакет заданий. Пакет — новые задания по теме лекции. Пакеты и прогресс хранятся только в этом браузере.</p>
+  </div>
+  <div id="packList"></div>
+  <div class="card">
+    <button class="primary" id="btnAdd" style="width:100%">Добавить пакет из лекции</button>
+    <div id="addBox" class="hidden" style="margin-top:12px">
+      <p class="muted" style="margin-top:0">Вставьте JSON-пакет. Формат ниже.</p>
+      <textarea id="packText" spellcheck="false" placeholder='{"title": "...", "items": [...]}'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="btnExample" class="small">Вставить пример</button>
+        <button id="btnSave" class="primary">Проверить и сохранить</button>
+      </div>
+      <div id="addErr" class="err" role="alert"></div>
+      <p class="muted">Формат: type — gap, meaning, build или listen.</p>
+      <pre id="schema"></pre>
+    </div>
+  </div>
+</section>
+
+<section id="scrPlay" class="screen">
+  <div class="row" style="justify-content:space-between;margin-bottom:4px">
+    <button id="btnBack" class="small">← Дни</button>
+    <span class="muted" id="counter"></span>
+  </div>
+  <div class="bar"><div id="bar"></div></div>
+  <div class="card">
+    <div class="prompt" id="prompt"></div>
+    <div id="task"></div>
+    <div class="fb" id="fb" aria-live="polite"></div>
+    <button id="btnNext" class="primary hidden" style="width:100%;margin-top:8px">Дальше</button>
+  </div>
+</section>
+
+<section id="scrDone" class="screen">
+  <div class="card" id="result"></div>
+  <div class="row">
+    <button class="primary" id="btnAgain">Ещё раз</button>
+    <button id="btnHome">К дням</button>
+  </div>
+</section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Создаёт элемент. Строки вставляются как текст, а не как HTML.
+function h(tag, attrs, ...kids){
+  const n = document.createElement(tag);
+  if(attrs) for(const k in attrs){
+    if(k === 'class') n.className = attrs[k];
+    else if(k === 'on') for(const ev in attrs.on) n.addEventListener(ev, attrs.on[ev]);
+    else if(k in n && typeof attrs[k] !== 'string') n[k] = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  }
+  kids.flat().forEach(c => { if(c != null && c !== false) n.append(c instanceof Node ? c : document.createTextNode(String(c))); });
+  return n;
+}
+
+const store = {
+  get(key, fb){ try{ const v = localStorage.getItem(key); return v == null ? fb : JSON.parse(v); }catch(e){ return fb; } },
+  set(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
+};
+
+let userPacks = store.get('md_packs', []);
+let progress = store.get('md_progress', {});
+let capital = store.get('md_capital', 0);
+const openVocab = new Set();
+let S = null; // текущая сессия
+
+const DEMO = {
+  id: 'demo',
+  title: 'Demo: inflation and AI chips',
+  topic: 'экономика · ИИ',
+  vocabulary: [
+    {word: 'inflation', ru: 'инфляция', example: 'Inflation rose to six percent last year.'},
+    {word: 'interest rate', ru: 'процентная ставка', example: 'The central bank raised the interest rate.'},
+    {word: 'demand', ru: 'спрос', example: 'Demand for AI chips is growing fast.'},
+    {word: 'supply', ru: 'предложение', example: 'The supply of chips is limited.'},
+    {word: 'invest', ru: 'инвестировать', example: 'Companies invest billions in AI.'},
+    {word: 'productivity', ru: 'производительность', example: 'AI tools can raise productivity.'},
+    {word: 'dataset', ru: 'набор данных', example: 'The dataset has a million images.'}
+  ],
+  items: [
+    {type: 'gap', sentence: 'Demand for AI chips ___ sharply last year.', answer: 'rose', options: ['rise', 'rose', 'rising'], ru: 'Спрос на чипы для ИИ резко вырос в прошлом году.', tip: 'Прошедшее время от rise — rose.'},
+    {type: 'meaning', word: 'inflation', answer: 'инфляция', options: ['инфляция', 'дефляция', 'рецессия', 'ипотека']},
+    {type: 'gap', sentence: 'Companies ___ billions of dollars in AI research.', answer: 'invest', options: ['invest', 'invests', 'investing'], ru: 'Компании инвестируют миллиарды долларов в исследования ИИ.', tip: 'Companies — множественное число, в present simple без -s.'},
+    {type: 'build', sentence: 'Productivity grows when workers use AI tools.', ru: 'Производительность растёт, когда работники используют инструменты ИИ.'},
+    {type: 'meaning', word: 'supply', answer: 'предложение', options: ['спрос', 'предложение', 'цена', 'рынок']},
+    {type: 'gap', sentence: 'If the central bank ___ the interest rate, loans become more expensive.', answer: 'raises', options: ['raise', 'raises', 'raised'], ru: 'Если центробанк повышает ставку, кредиты дорожают.', tip: 'Подлежащее the central bank — одно (he/she/it), поэтому в present simple добавляем -s: raises.'},
+    {type: 'listen', sentence: 'Engineers train the model on large datasets.', ru: 'Инженеры обучают модель на больших наборах данных.'},
+    {type: 'gap', sentence: 'The dataset ___ over a million images.', answer: 'contains', options: ['contain', 'contains', 'containing'], ru: 'Набор данных содержит больше миллиона изображений.', tip: 'The dataset — одно, поэтому contains.'},
+    {type: 'build', sentence: 'Inflation is high, so the bank may raise rates.', ru: 'Инфляция высокая, поэтому банк может повысить ставки.'},
+    {type: 'meaning', word: 'dataset', answer: 'набор данных', options: ['зарплата', 'набор данных', 'программа', 'акция']}
+  ]
+};
+
+const SCHEMA = `{
+  "title": "Лекция 3: инфляция и ставки",
+  "topic": "экономика",
+  "vocabulary": [{"word": "inflation", "ru": "инфляция", "example": "Inflation rose last year."}],
+  "items": [
+    {"type": "gap", "sentence": "Prices ___ every year.", "answer": "rise", "options": ["rise", "rises", "rising"], "ru": "Цены растут каждый год.", "tip": "Подсказка к правилу"},
+    {"type": "meaning", "word": "inflation", "answer": "инфляция", "options": ["инфляция", "дефляция", "ипотека"]},
+    {"type": "build", "sentence": "Words must be in the right order.", "ru": "Слова должны стоять в правильном порядке."},
+    {"type": "listen", "sentence": "The central bank raised rates.", "ru": "Центробанк повысил ставки."}
+  ]
+}`;
+
+function allPacks(){ return [DEMO, ...userPacks]; }
+
+function shuffle(a){
+  a = a.slice();
+  for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function norm(s){ return String(s).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim(); }
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US';
+  u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+
+function validatePack(obj){
+  if(!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Пакет должен быть JSON-объектом.');
+  if(typeof obj.title !== 'string' || !obj.title.trim()) throw new Error('Нужно поле "title" (строка).');
+  if(!Array.isArray(obj.items) || !obj.items.length) throw new Error('Нужен непустой массив "items".');
+  obj.items.forEach((it, i) => {
+    const where = `items[${i}]`;
+    const need = (cond, msg) => { if(!cond) throw new Error(`${where}: ${msg}`); };
+    need(it && typeof it === 'object', 'должен быть объектом');
+    if(it.type === 'gap'){
+      need(typeof it.sentence === 'string' && it.sentence.includes('___'), 'в "sentence" нужен пропуск ___');
+      need(typeof it.answer === 'string', 'нужен "answer"');
+      need(Array.isArray(it.options) && it.options.includes(it.answer), '"options" должен содержать "answer"');
+    } else if(it.type === 'meaning'){
+      need(typeof it.word === 'string', 'нужен "word"');
+      need(typeof it.answer === 'string', 'нужен "answer" (перевод)');
+      need(Array.isArray(it.options) && it.options.includes(it.answer), '"options" должен содержать "answer"');
+    } else if(it.type === 'build' || it.type === 'listen'){
+      need(typeof it.sentence === 'string' && it.sentence.trim(), 'нужно "sentence"');
+    } else {
+      need(false, `неизвестный type "${it.type}" (gap, meaning, build, listen)`);
+    }
+  });
+  return obj;
+}
+
+function show(id){
+  for(const s of ['scrHome', 'scrPlay', 'scrDone']) $(s).classList.toggle('on', s === id);
+  window.scrollTo(0, 0);
+  if(id === 'scrHome') renderHome();
+  updateStats();
+}
+
+function updateStats(){
+  $('capitalPill').textContent = '$ ' + (capital + (S ? S.earned : 0));
+  const sp = $('streakPill');
+  sp.hidden = !(S && S.streak > 1);
+  sp.textContent = 'серия ' + (S ? S.streak : 0);
+}
+
+// ---------- Дни (пакеты) ----------
+
+function renderHome(){
+  const list = $('packList');
+  list.replaceChildren();
+  allPacks().forEach(p => {
+    const prog = progress[p.id] || {missed: [], plays: 0};
+    const card = h('div', {class: 'card'},
+      h('p', {class: 'pack-title'}, p.title),
+      h('p', {class: 'muted'}, `${p.topic ? p.topic + ' · ' : ''}${p.items.length} заданий · к повтору: ${prog.missed.length} · пройдено: ${prog.plays}`),
+      h('div', {class: 'row'},
+        h('button', {class: 'primary', on: {click: () => startPack(p)}}, 'Играть'),
+        h('button', {on: {click: () => toggleVocab(p.id)}}, 'Словарь')
+      ),
+      vocabBox(p)
+    );
+    if(p.id !== 'demo') card.querySelector('.row').append(h('button', {on: {click: () => removePack(p.id)}}, 'Удалить'));
+    list.append(card);
+  });
+}
+
+function vocabBox(p){
+  const box = h('div', {class: openVocab.has(p.id) ? '' : 'hidden', style: 'margin-top:10px'});
+  const items = p.vocabulary || [];
+  if(!items.length){
+    box.append(h('p', {class: 'muted'}, 'В пакете нет словаря.'));
+    return box;
+  }
+  box.append(h('ul', {class: 'vocab'}, items.map(v => h('li', null,
+    h('b', null, v.word), ` — ${v.ru || ''}`,
+    v.example ? h('div', {class: 'muted'}, v.example) : null
+  ))));
+  box.append(h('button', {class: 'small', on: {click: () => copyQuizlet(p)}}, 'Скопировать для Quizlet'));
+  return box;
+}
+
+function toggleVocab(id){
+  if(openVocab.has(id)) openVocab.delete(id); else openVocab.add(id);
+  renderHome();
+}
+
+async function copyQuizlet(p){
+  const text = (p.vocabulary || []).map(v => `${v.word} — ${v.ru || ''} — ${v.example || ''}`).join('\n');
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('Скопировано. Вставьте в Quizlet при импорте.');
+  }catch(e){
+    window.prompt('Скопируйте текст:', text);
+  }
+}
+
+function removePack(id){
+  if(!confirm('Удалить пакет и его прогресс?')) return;
+  userPacks = userPacks.filter(p => p.id !== id);
+  delete progress[id];
+  store.set('md_packs', userPacks);
+  store.set('md_progress', progress);
+  renderHome();
+}
+
+$('btnAdd').onclick = () => $('addBox').classList.toggle('hidden');
+$('schema').textContent = SCHEMA;
+$('btnExample').onclick = () => { $('packText').value = JSON.stringify(DEMO, null, 2); };
+$('btnSave').onclick = () => {
+  let raw;
+  try{ raw = JSON.parse($('packText').value); }
+  catch(e){ $('addErr').textContent = 'Не получилось прочитать JSON: ' + e.message; return; }
+  let pack;
+  try{ pack = validatePack(raw); }
+  catch(e){ $('addErr').textContent = e.message; return; }
+  userPacks.push({
+    id: 'p' + Math.random().toString(36).slice(2, 9),
+    title: pack.title.trim(),
+    topic: typeof pack.topic === 'string' ? pack.topic : '',
+    vocabulary: Array.isArray(pack.vocabulary) ? pack.vocabulary.filter(v => v && typeof v.word === 'string') : [],
+    items: pack.items
+  });
+  store.set('md_packs', userPacks);
+  $('packText').value = '';
+  $('addErr').textContent = '';
+  $('addBox').classList.add('hidden');
+  renderHome();
+};
+
+// ---------- Сессия ----------
+
+function startPack(p){
+  const missed = (progress[p.id] && progress[p.id].missed) || [];
+  const order = shuffle(p.items.map((_, i) => i));
+  S = {
+    pack: p,
+    queue: [...order.filter(i => missed.includes(i)), ...order.filter(i => !missed.includes(i))],
+    done: 0, total: p.items.length, firstTry: 0,
+    attempts: {}, misses: [], solved: {},
+    streak: 0, best: 0, earned: 0, current: null, answered: false
+  };
+  show('scrPlay');
+  nextItem();
+}
+
+function nextItem(){
+  if(!S.queue.length) return finish();
+  S.current = S.queue.shift();
+  S.answered = false;
+  renderItem();
+}
+
+function renderItem(){
+  const it = S.pack.items[S.current];
+  const task = $('task');
+  task.replaceChildren();
+  $('fb').textContent = '';
+  $('fb').className = 'fb';
+  $('btnNext').classList.add('hidden');
+  $('counter').textContent = `готово ${S.done} из ${S.total}`;
+  $('bar').style.width = (S.done / S.total * 100) + '%';
+  if(it.type === 'gap') renderGap(it);
+  else if(it.type === 'meaning') renderMeaning(it);
+  else if(it.type === 'build') renderBuild(it);
+  else renderListen(it);
+  updateStats();
+}
+
+function renderGap(it){
+  $('prompt').textContent = 'Вставьте подходящее слово';
+  const [before, after] = it.sentence.split('___');
+  $('task').append(
+    h('div', {class: 'sentence'}, before, h('span', {class: 'gap'}, '_____'), after),
+    ...shuffle(it.options).map(o => h('button', {class: 'opt', 'data-v': o,
+      on: {click: e => pickOption(e.currentTarget, o, it.answer, it)}}, o))
+  );
+}
+
+function renderMeaning(it){
+  $('prompt').textContent = 'Выберите перевод';
+  $('task').append(
+    h('div', {class: 'sentence'}, h('b', null, it.word)),
+    ...shuffle(it.options).map(o => h('button', {class: 'opt', 'data-v': o,
+      on: {click: e => pickOption(e.currentTarget, o, it.answer, it)}}, o))
+  );
+}
+
+function pickOption(btn, value, correct, it){
+  if(S.answered) return;
+  const buttons = $('task').querySelectorAll('button.opt');
+  buttons.forEach(b => { b.disabled = true; if(b.dataset.v === correct) b.classList.add('right'); });
+  const ok = value === correct;
+  if(!ok) btn.classList.add('wrong');
+  judge(ok, it);
+}
+
+function renderBuild(it){
+  $('prompt').textContent = 'Соберите предложение из слов';
+  const words = it.sentence.split(/\s+/);
+  let pool = shuffle(words.map((w, i) => ({w, i})));
+  let placed = [];
+  const area = h('div', {class: 'answer-area'});
+  const bank = h('div', {class: 'chips'});
+  const checkBtn = h('button', {class: 'primary', disabled: true, on: {click: () => {
+    if(S.answered) return;
+    const ok = placed.length === words.length && placed.every((c, k) => c.i === k);
+    $('task').querySelectorAll('button').forEach(b => b.disabled = true);
+    judge(ok, it);
+  }}}, 'Проверить');
+
+  const redraw = () => {
+    area.replaceChildren(...placed.map(c => h('button', {class: 'chip small', on: {click: () => {
+      if(S.answered) return;
+      placed = placed.filter(x => x !== c);
+      pool.push(c);
+      redraw();
+    }}}, c.w)));
+    bank.replaceChildren(...pool.map(c => h('button', {class: 'chip small', on: {click: () => {
+      if(S.answered) return;
+      pool = pool.filter(x => x !== c);
+      placed.push(c);
+      redraw();
+    }}}, c.w)));
+    checkBtn.disabled = placed.length !== words.length;
+  };
+
+  $('task').append(h('div', {class: 'prompt'}, 'Ваш ответ (нажмите слово, чтобы убрать):'), area,
+    h('div', {class: 'prompt'}, 'Слова:'), bank, checkBtn);
+  redraw();
+}
+
+function renderListen(it){
+  $('prompt').textContent = 'Послушайте и напишите предложение';
+  const input = h('input', {type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Напишите услышанное'});
+  const checkBtn = h('button', {class: 'primary', on: {click: () => {
+    if(S.answered) return;
+    const ok = norm(input.value) === norm(it.sentence);
+    input.disabled = true;
+    checkBtn.disabled = true;
+    judge(ok, it);
+  }}}, 'Проверить');
+  input.addEventListener('keydown', e => { if(e.key === 'Enter' && !checkBtn.disabled) checkBtn.click(); });
+  $('task').append(
+    h('button', {class: 'primary', on: {click: () => speak(it.sentence)}}, '▶ Слушать'),
+    h('div', {style: 'height:10px'}),
+    input,
+    h('div', {style: 'margin-top:8px'}, checkBtn)
+  );
+  if(!('speechSynthesis' in window)){
+    $('task').append(h('p', {class: 'muted'}, 'Озвучка в этом браузере недоступна. Текст: ', h('b', null, it.sentence)));
+  }
+}
+
+function correctText(it){
+  return it.type === 'build' || it.type === 'listen' ? it.sentence : it.answer;
+}
+
+function judge(ok, it){
+  S.answered = true;
+  const key = S.current;
+  if(ok){
+    S.done++;
+    if(!S.attempts[key]) S.firstTry++;
+    S.solved[key] = true;
+    S.streak++;
+    S.best = Math.max(S.best, S.streak);
+    const gain = 10 + Math.min(S.streak - 1, 4) * 2;
+    S.earned += gain;
+    feedback(true, `Верно! +$${gain}`, it);
+  } else {
+    S.streak = 0;
+    S.attempts[key] = (S.attempts[key] || 0) + 1;
+    if(!S.misses.includes(key)) S.misses.push(key);
+    S.queue.push(key);
+    feedback(false, 'Пока нет. Это задание вернётся позже.', it);
+  }
+  $('bar').style.width = (S.done / S.total * 100) + '%';
+  $('btnNext').classList.remove('hidden');
+  updateStats();
+}
+
+function feedback(ok, msg, it){
+  const extra = [];
+  if(!ok) extra.push(h('div', {class: 'tip'}, 'Правильный ответ: ', h('b', null, correctText(it))));
+  if(it.ru) extra.push(h('div', {class: 'tip'}, it.ru));
+  if(it.tip) extra.push(h('div', {class: 'tip'}, it.tip));
+  const fb = $('fb');
+  fb.className = 'fb ' + (ok ? 'ok' : 'bad');
+  fb.replaceChildren(h('div', null, msg), ...extra);
+}
+
+function saveSession(){
+  if(!S) return;
+  const prev = progress[S.pack.id] || {missed: [], plays: 0, bestFirstTry: 0};
+  const missed = [...new Set([...S.misses, ...prev.missed.filter(i => !S.solved[i])])];
+  const complete = S.done === S.total;
+  progress[S.pack.id] = {
+    missed,
+    plays: prev.plays + (complete ? 1 : 0),
+    bestFirstTry: complete ? Math.max(prev.bestFirstTry, S.firstTry) : prev.bestFirstTry
+  };
+  capital += S.earned;
+  S.earned = 0;
+  store.set('md_progress', progress);
+  store.set('md_capital', capital);
+}
+
+function finish(){
+  const earned = S.earned;
+  saveSession();
+  $('result').replaceChildren(
+    h('p', {class: 'pack-title'}, S.pack.title),
+    h('p', null, `С первого раза: ${S.firstTry} из ${S.total}`),
+    h('p', null, `Заработано: $${earned}. Лучшая серия: ${S.best}.`),
+    S.misses.length
+      ? h('p', {class: 'muted'}, `Ошибок было: ${S.misses.length}. Эти задания пойдут первыми в следующий раз.`)
+      : h('p', {class: 'muted'}, 'Без ошибок.')
+  );
+  show('scrDone');
+}
+
+$('btnBack').onclick = () => { saveSession(); show('scrHome'); };
+$('btnHome').onclick = () => show('scrHome');
+$('btnAgain').onclick = () => { if(S) startPack(S.pack); };
+$('btnNext').onclick = nextItem;
+
+show('scrHome');
+</script>
+</body>
+</html>
