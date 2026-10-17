@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Market Day — English</title>
-<meta name="description" content="Тренажёр английского по лекциям: экономика и ИИ.">
+<meta name="description" content="Тренажёр английского по лекциям и курсу: экономика, ИИ, midterm.">
 <style>
 :root{--bg:#f5f6fa;--card:#fff;--ink:#1c2333;--muted:#667085;--line:#e3e7ef;--accent:#2563eb;--accent-ink:#fff;--ok:#15803d;--okbg:#e6f6ec;--bad:#b42318;--badbg:#fdeceb}
 @media (prefers-color-scheme:dark){
@@ -62,7 +62,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding
 
 <section id="scrHome" class="screen on">
   <div class="card">
-    <p class="muted" style="margin:0">Каждый день — один пакет заданий. Пакет — новые задания по теме лекции. Пакеты и прогресс хранятся только в этом браузере.</p>
+    <p class="muted" style="margin:0">Каждый день — один пакет заданий. Пакет — новые задания по теме лекции или курса. Пакеты и прогресс хранятся только в этом браузере.</p>
   </div>
   <div id="packList"></div>
   <div class="card">
@@ -122,14 +122,108 @@ function h(tag, attrs, ...kids){
 
 const store = {
   get(key, fb){ try{ const v = localStorage.getItem(key); return v == null ? fb : JSON.parse(v); }catch(e){ return fb; } },
-  set(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
+  set(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); return true; }catch(e){ return false; } }
 };
 
-let userPacks = store.get('md_packs', []);
-let progress = store.get('md_progress', {});
-let capital = store.get('md_capital', 0);
+// Данные из localStorage могут быть повреждены: проверяем форму при чтении.
+function sanitizePacks(v){
+  return Array.isArray(v) ? v.filter(p => p && typeof p.id === 'string' && typeof p.title === 'string' && Array.isArray(p.items)) : [];
+}
+function sanitizeProgress(v){
+  const out = {};
+  if(v && typeof v === 'object' && !Array.isArray(v)){
+    for(const id of Object.keys(v)){
+      const e = v[id];
+      if(!e || typeof e !== 'object') continue;
+      out[id] = {
+        missed: Array.isArray(e.missed) ? e.missed.filter(Number.isInteger) : [],
+        plays: Number.isFinite(e.plays) ? e.plays : 0,
+        bestFirstTry: Number.isFinite(e.bestFirstTry) ? e.bestFirstTry : 0
+      };
+    }
+  }
+  return out;
+}
+function readCapital(){
+  const c = store.get('md_capital', 0);
+  return Number.isFinite(c) ? c : 0;
+}
+
+let userPacks = sanitizePacks(store.get('md_packs', []));
+let progress = sanitizeProgress(store.get('md_progress', {}));
+let capital = readCapital();
 const openVocab = new Set();
+const BUILTIN_IDS = ['midterm', 'demo'];
 let S = null; // текущая сессия
+
+// Midterm: недели 1 и 3. Все задания написаны заново по темам курса, исходные задания курса не используются.
+const MIDTERM = {
+  id: 'midterm',
+  title: 'Midterm: недели 1 и 3',
+  topic: 'Essential English · 22 октября',
+  vocabulary: [
+    {word: 'content (adj)', ru: 'довольный, удовлетворённый', example: 'After the long walk, the dog was content to rest by the fire.'},
+    {word: 'joyful', ru: 'радостный, полный радости', example: 'The children gave a joyful shout when the snow started.'},
+    {word: 'satisfied', ru: 'удовлетворённый', example: 'The manager was satisfied with the final report.'},
+    {word: 'pleased', ru: 'довольный, рад', example: 'She was pleased to get the job offer.'},
+    {word: 'delighted', ru: 'в восторге, очень рад', example: 'We were delighted by the surprise party.'},
+    {word: 'cheerful', ru: 'весёлый, жизнерадостный', example: 'The cheerful waiter greeted us with a smile.'},
+    {word: 'well-being', ru: 'благополучие', example: 'Good sleep is important for your well-being.'},
+    {word: 'leisure time', ru: 'свободное время, досуг', example: 'What do you do in your leisure time?'},
+    {word: 'emotions', ru: 'эмоции, чувства', example: 'Music can stir strong emotions in people.'},
+    {word: 'contentment', ru: 'удовлетворённость', example: 'He found contentment in a quiet life by the sea.'},
+    {word: 'pride', ru: 'гордость', example: 'The coach felt pride in her team\'s win.'},
+    {word: 'jealous (of)', ru: 'завистливый, ревнивый', example: 'Sam was jealous of his brother\'s new bike.'},
+    {word: 'embarrassed', ru: 'смущённый, неловкий', example: 'Tom felt embarrassed when he tripped on the stairs.'},
+    {word: 'gene', ru: 'ген', example: 'This disease is passed on through a single gene.'},
+    {word: 'live on your own', ru: 'жить самостоятельно', example: 'She started living on her own at eighteen.'},
+    {word: 'be content with', ru: 'быть довольным чем-то', example: 'He is content with a small flat and a good job.'},
+    {word: 'pivotal', ru: 'ключевой, решающий', example: 'Her idea was pivotal to the success of the project.'},
+    {word: 'drizzle', ru: 'морось; моросить', example: 'It began to drizzle as we left the station.'},
+    {word: 'overcast', ru: 'пасмурный', example: 'The sky was overcast all day.'},
+    {word: 'humid', ru: 'влажный, душный', example: 'The air is very humid before a summer storm.'},
+    {word: 'blustery', ru: 'ветреный, порывистый', example: 'It was a blustery day, and our umbrellas kept turning inside out.'},
+    {word: 'thunder', ru: 'гром', example: 'We heard thunder in the distance.'},
+    {word: 'lightning', ru: 'молния', example: 'A bolt of lightning hit the tall tree.'},
+    {word: 'drought', ru: 'засуха', example: 'The drought left the river almost dry.'},
+    {word: 'chilly', ru: 'прохладный, зябкий', example: 'The evenings are chilly in October.'},
+    {word: 'damp', ru: 'сырой', example: 'Our socks were damp after the walk in the wet grass.'},
+    {word: 'storm', ru: 'буря, гроза', example: 'The storm knocked down a fence near our house.'},
+    {word: 'forecast', ru: 'прогноз погоды', example: 'The forecast says it will be windy tomorrow.'},
+    {word: 'heatwave', ru: 'волна жары', example: 'A heatwave in July made the city very hot.'},
+    {word: 'breeze', ru: 'лёгкий ветерок', example: 'A warm breeze moved the leaves.'},
+    {word: 'freezing', ru: 'очень холодный, морозный', example: 'The lake was freezing, so nobody swam.'},
+    {word: 'foggy', ru: 'туманный', example: 'The morning was foggy, so the flight was late.'},
+    {word: 'hurricane', ru: 'ураган', example: 'The hurricane destroyed houses along the coast.'}
+  ],
+  items: [
+    {type: 'gap', sentence: '___ lives next door to you?', answer: 'Who', options: ['Who', 'Who does', 'Whom'], ru: 'Кто живёт по соседству с вами?', tip: 'Who здесь подлежащее: спрашиваем о том, кто делает действие. Вспомогательный не нужен.'},
+    {type: 'gap', sentence: 'Who does this bag belong ___?', answer: 'to', options: ['to', 'for', 'with'], ru: 'Кому принадлежит эта сумка?', tip: 'belong to — принадлежать. Предлог стоит в конце вопроса.'},
+    {type: 'gap', sentence: 'How many times ___ you been to Scotland?', answer: 'have', options: ['have', 'did', 'do'], ru: 'Сколько раз вы были в Шотландии?', tip: 'Опыт до сих пор: have + been (Present Perfect). Форма did you been — ошибка.'},
+    {type: 'build', sentence: 'Who has borrowed my umbrella?', ru: 'Кто одолжил мой зонт?', tip: 'Who — подлежащее, поэтому do/does не нужны. has — часть Present Perfect.'},
+    {type: 'build', sentence: 'What are you doing at the moment?', ru: 'Чем вы занимаетесь сейчас?', tip: 'Present Continuous в вопросе: are + подлежащее + -ing.'},
+    {type: 'gap', sentence: '___ did they move to Madrid?', answer: 'When', options: ['When', 'Who', 'Whose'], ru: 'Когда они переехали в Мадрид?', tip: 'Вопрос о времени в Past Simple: When + did + подлежащее + глагол.'},
+    {type: 'gap', sentence: 'Last night, the thunder ___ very loudly at midnight.', answer: 'boomed', options: ['boomed', 'has boomed', 'is booming'], ru: 'Прошлой ночью гром очень громко грохотал в полночь.', tip: 'Last night — законченное прошлое: Past Simple.'},
+    {type: 'gap', sentence: 'By the time we reached the hotel, the rain ___.', answer: 'had stopped', options: ['had stopped', 'has stopped', 'is stopping'], ru: 'Когда мы дошли до отеля, дождь уже закончился.', tip: 'Более раннее прошлое действие с by the time — Past Perfect: had + V3.'},
+    {type: 'gap', sentence: 'The roads were icy because it ___ since midnight.', answer: 'had been freezing', options: ['had been freezing', 'was freezing', 'froze'], ru: 'Дороги были скользкими: с полуночи подмерзало.', tip: 'since + срок до другого прошлого момента: Past Perfect Continuous (had been + -ing).'},
+    {type: 'build', sentence: 'We were walking home when the rain started.', ru: 'Мы шли домой, когда начался дождь.', tip: 'Длинное действие в процессе — Past Continuous; короткое, которое его прервало, — Past Simple.'},
+    {type: 'build', sentence: 'How long had they been waiting when the bus arrived?', ru: 'Как долго они ждали, когда приехал автобус?', tip: 'Срок до прошлого момента: how long + had been + -ing.'},
+    {type: 'gap', sentence: 'The morning was ___, so we wore our coats.', answer: 'chilly', options: ['chilly', 'humid', 'drought'], ru: 'Утро было прохладным, поэтому мы надели пальто.', tip: 'chilly — прохладный, зябкий. Это не так холодно, как freezing.'},
+    {type: 'gap', sentence: 'The farmers lost their crops because of the ___ last summer.', answer: 'drought', options: ['drought', 'drizzle', 'breeze'], ru: 'Фермеры потеряли урожай из-за засухи прошлым летом.', tip: 'drought — засуха; drizzle — морось; breeze — лёгкий ветерок.'},
+    {type: 'gap', sentence: 'We stayed inside during the ___ because the lightning was dangerous.', answer: 'storm', options: ['storm', 'breeze', 'forecast'], ru: 'Мы оставались дома во время грозы: молнии были опасны.', tip: 'storm — буря, гроза.'},
+    {type: 'meaning', word: 'drizzle', answer: 'морось, моросить', options: ['морось, моросить', 'ураган', 'туман', 'засуха']},
+    {type: 'meaning', word: 'humid', answer: 'влажный, душный', options: ['влажный, душный', 'ветреный', 'пасмурный', 'прохладный']},
+    {type: 'meaning', word: 'jealous', answer: 'завистливый, ревнивый', options: ['завистливый, ревнивый', 'смущённый', 'гордый', 'довольный']},
+    {type: 'meaning', word: 'embarrassed', answer: 'смущённый, неловкий', options: ['смущённый, неловкий', 'гордый', 'весёлый', 'спокойный']},
+    {type: 'meaning', word: 'pivotal', answer: 'ключевой, решающий', options: ['ключевой, решающий', 'свободный', 'дешёвый', 'радостный']},
+    {type: 'meaning', word: 'heatwave', answer: 'волна жары', options: ['волна жары', 'лёгкий ветерок', 'гроза', 'туман']},
+    {type: 'meaning', word: 'contentment', answer: 'удовлетворённость', options: ['удовлетворённость', 'зависть', 'стыд', 'любопытство']},
+    {type: 'meaning', word: 'forecast', answer: 'прогноз погоды', options: ['прогноз погоды', 'молния', 'ураган', 'гром']},
+    {type: 'listen', sentence: 'Have you ever seen a hurricane?', ru: 'Вы когда-нибудь видели ураган?'},
+    {type: 'listen', sentence: 'It drizzled all morning, so we stayed indoors.', ru: 'Всё утро моросило, поэтому мы сидели дома.'},
+    {type: 'listen', sentence: 'Did it rain while you were walking home?', ru: 'Шёл ли дождь, пока вы шли домой?'}
+  ]
+};
 
 const DEMO = {
   id: 'demo',
@@ -152,7 +246,7 @@ const DEMO = {
     {type: 'meaning', word: 'supply', answer: 'предложение', options: ['спрос', 'предложение', 'цена', 'рынок']},
     {type: 'gap', sentence: 'If the central bank ___ the interest rate, loans become more expensive.', answer: 'raises', options: ['raise', 'raises', 'raised'], ru: 'Если центробанк повышает ставку, кредиты дорожают.', tip: 'Подлежащее the central bank — одно (he/she/it), поэтому в present simple добавляем -s: raises.'},
     {type: 'listen', sentence: 'Engineers train the model on large datasets.', ru: 'Инженеры обучают модель на больших наборах данных.'},
-    {type: 'gap', sentence: 'The dataset ___ over a million images.', answer: 'contains', options: ['contain', 'contains', 'containing'], ru: 'Набор данных содержит больше миллиона изображений.', tip: 'The dataset — одно, поэтому contains.'},
+    {type: 'gap', sentence: 'The dataset ___ over a million images.', answer: 'contains', options: ['contain', 'contains', 'containing'], ru: 'Набор данных содержит больше миллиона изображений.', tip: 'The dataset — одно (it), поэтому в present simple добавляем -s: contains.'},
     {type: 'build', sentence: 'Inflation is high, so the bank may raise rates.', ru: 'Инфляция высокая, поэтому банк может повысить ставки.'},
     {type: 'meaning', word: 'dataset', answer: 'набор данных', options: ['зарплата', 'набор данных', 'программа', 'акция']}
   ]
@@ -163,14 +257,14 @@ const SCHEMA = `{
   "topic": "экономика",
   "vocabulary": [{"word": "inflation", "ru": "инфляция", "example": "Inflation rose last year."}],
   "items": [
-    {"type": "gap", "sentence": "Prices ___ every year.", "answer": "rise", "options": ["rise", "rises", "rising"], "ru": "Цены растут каждый год.", "tip": "Подсказка к правилу"},
+    {"type": "gap", "sentence": "Prices ___ every year.", "answer": "rise", "options": ["rise", "rises", "rising"], "ru": "Цены растут каждый год.", "tip": "Prices — множественное число, в present simple без -s."},
     {"type": "meaning", "word": "inflation", "answer": "инфляция", "options": ["инфляция", "дефляция", "ипотека"]},
     {"type": "build", "sentence": "Words must be in the right order.", "ru": "Слова должны стоять в правильном порядке."},
     {"type": "listen", "sentence": "The central bank raised rates.", "ru": "Центробанк повысил ставки."}
   ]
 }`;
 
-function allPacks(){ return [DEMO, ...userPacks]; }
+function allPacks(){ return [MIDTERM, DEMO, ...userPacks]; }
 
 function shuffle(a){
   a = a.slice();
@@ -178,7 +272,16 @@ function shuffle(a){
   return a;
 }
 
-function norm(s){ return String(s).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim(); }
+// Сравнение ответа: регистр, пунктуация и типографские апострофы не важны.
+function norm(s){
+  return String(s).normalize('NFC')
+    .toLowerCase()
+    .replace(/[‘’ʼ`´]/g, "'")
+    .replace(/(^|\s)'|'(?=\s|$)/g, ' ')
+    .replace(/[^\p{L}\p{N}\p{M}' ]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 function speak(text){
   if(!('speechSynthesis' in window)) return;
@@ -198,15 +301,15 @@ function validatePack(obj){
     const need = (cond, msg) => { if(!cond) throw new Error(`${where}: ${msg}`); };
     need(it && typeof it === 'object', 'должен быть объектом');
     if(it.type === 'gap'){
-      need(typeof it.sentence === 'string' && it.sentence.includes('___'), 'в "sentence" нужен пропуск ___');
-      need(typeof it.answer === 'string', 'нужен "answer"');
+      need(typeof it.sentence === 'string' && it.sentence.split('___').length === 2, 'в "sentence" нужен ровно один пропуск ___');
+      need(typeof it.answer === 'string' && it.answer.trim(), 'нужен "answer"');
       need(Array.isArray(it.options) && it.options.includes(it.answer), '"options" должен содержать "answer"');
     } else if(it.type === 'meaning'){
-      need(typeof it.word === 'string', 'нужен "word"');
-      need(typeof it.answer === 'string', 'нужен "answer" (перевод)');
+      need(typeof it.word === 'string' && it.word.trim(), 'нужен "word"');
+      need(typeof it.answer === 'string' && it.answer.trim(), 'нужен "answer" (перевод)');
       need(Array.isArray(it.options) && it.options.includes(it.answer), '"options" должен содержать "answer"');
     } else if(it.type === 'build' || it.type === 'listen'){
-      need(typeof it.sentence === 'string' && it.sentence.trim(), 'нужно "sentence"');
+      need(typeof it.sentence === 'string' && norm(it.sentence) !== '', 'нужно "sentence" с буквами');
     } else {
       need(false, `неизвестный type "${it.type}" (gap, meaning, build, listen)`);
     }
@@ -224,7 +327,7 @@ function show(id){
 function updateStats(){
   $('capitalPill').textContent = '$ ' + (capital + (S ? S.earned : 0));
   const sp = $('streakPill');
-  sp.hidden = !(S && S.streak > 1);
+  sp.hidden = !(S && S.streak > 1 && $('scrPlay').classList.contains('on'));
   sp.textContent = 'серия ' + (S ? S.streak : 0);
 }
 
@@ -244,7 +347,7 @@ function renderHome(){
       ),
       vocabBox(p)
     );
-    if(p.id !== 'demo') card.querySelector('.row').append(h('button', {on: {click: () => removePack(p.id)}}, 'Удалить'));
+    if(!BUILTIN_IDS.includes(p.id)) card.querySelector('.row').append(h('button', {on: {click: () => removePack(p.id)}}, 'Удалить'));
     list.append(card);
   });
 }
@@ -281,9 +384,10 @@ async function copyQuizlet(p){
 
 function removePack(id){
   if(!confirm('Удалить пакет и его прогресс?')) return;
-  userPacks = userPacks.filter(p => p.id !== id);
-  delete progress[id];
+  userPacks = sanitizePacks(store.get('md_packs', [])).filter(p => p.id !== id);
   store.set('md_packs', userPacks);
+  progress = sanitizeProgress(store.get('md_progress', {}));
+  delete progress[id];
   store.set('md_progress', progress);
   renderHome();
 }
@@ -298,14 +402,18 @@ $('btnSave').onclick = () => {
   let pack;
   try{ pack = validatePack(raw); }
   catch(e){ $('addErr').textContent = e.message; return; }
-  userPacks.push({
+  const next = [...sanitizePacks(store.get('md_packs', [])), {
     id: 'p' + Math.random().toString(36).slice(2, 9),
     title: pack.title.trim(),
     topic: typeof pack.topic === 'string' ? pack.topic : '',
     vocabulary: Array.isArray(pack.vocabulary) ? pack.vocabulary.filter(v => v && typeof v.word === 'string') : [],
     items: pack.items
-  });
-  store.set('md_packs', userPacks);
+  }];
+  if(!store.set('md_packs', next)){
+    $('addErr').textContent = 'Не удалось сохранить пакет: браузер не даёт писать в хранилище.';
+    return;
+  }
+  userPacks = next;
   $('packText').value = '';
   $('addErr').textContent = '';
   $('addBox').classList.add('hidden');
@@ -313,6 +421,11 @@ $('btnSave').onclick = () => {
 };
 
 // ---------- Сессия ----------
+
+// Короткая блокировка после смены экрана: второй клик двойного тапа не должен ответить на новое задание.
+function locked(){
+  return S.answered || performance.now() < S.lockUntil;
+}
 
 function startPack(p){
   const missed = (progress[p.id] && progress[p.id].missed) || [];
@@ -322,7 +435,7 @@ function startPack(p){
     queue: [...order.filter(i => missed.includes(i)), ...order.filter(i => !missed.includes(i))],
     done: 0, total: p.items.length, firstTry: 0,
     attempts: {}, misses: [], solved: {},
-    streak: 0, best: 0, earned: 0, current: null, answered: false
+    streak: 0, best: 0, earned: 0, gained: 0, current: null, answered: false, lockUntil: 0
   };
   show('scrPlay');
   nextItem();
@@ -344,6 +457,7 @@ function renderItem(){
   $('btnNext').classList.add('hidden');
   $('counter').textContent = `готово ${S.done} из ${S.total}`;
   $('bar').style.width = (S.done / S.total * 100) + '%';
+  S.lockUntil = performance.now() + 350;
   if(it.type === 'gap') renderGap(it);
   else if(it.type === 'meaning') renderMeaning(it);
   else if(it.type === 'build') renderBuild(it);
@@ -371,7 +485,7 @@ function renderMeaning(it){
 }
 
 function pickOption(btn, value, correct, it){
-  if(S.answered) return;
+  if(locked()) return;
   const buttons = $('task').querySelectorAll('button.opt');
   buttons.forEach(b => { b.disabled = true; if(b.dataset.v === correct) b.classList.add('right'); });
   const ok = value === correct;
@@ -381,31 +495,28 @@ function pickOption(btn, value, correct, it){
 
 function renderBuild(it){
   $('prompt').textContent = 'Соберите предложение из слов';
-  const words = it.sentence.split(/\s+/);
+  const words = it.sentence.trim().split(/\s+/);
   let pool = shuffle(words.map((w, i) => ({w, i})));
   let placed = [];
   const area = h('div', {class: 'answer-area'});
   const bank = h('div', {class: 'chips'});
   const checkBtn = h('button', {class: 'primary', disabled: true, on: {click: () => {
-    if(S.answered) return;
-    const ok = placed.length === words.length && placed.every((c, k) => c.i === k);
+    if(locked()) return;
+    const ok = placed.length === words.length && placed.every((c, k) => c.w === words[k]);
     $('task').querySelectorAll('button').forEach(b => b.disabled = true);
     judge(ok, it);
   }}}, 'Проверить');
 
+  const chip = (c, from) => h('button', {class: 'chip small', on: {click: () => {
+    if(locked()) return;
+    if(from === 'placed'){ placed = placed.filter(x => x !== c); pool.push(c); }
+    else { pool = pool.filter(x => x !== c); placed.push(c); }
+    redraw();
+  }}}, c.w);
+
   const redraw = () => {
-    area.replaceChildren(...placed.map(c => h('button', {class: 'chip small', on: {click: () => {
-      if(S.answered) return;
-      placed = placed.filter(x => x !== c);
-      pool.push(c);
-      redraw();
-    }}}, c.w)));
-    bank.replaceChildren(...pool.map(c => h('button', {class: 'chip small', on: {click: () => {
-      if(S.answered) return;
-      pool = pool.filter(x => x !== c);
-      placed.push(c);
-      redraw();
-    }}}, c.w)));
+    area.replaceChildren(...placed.map(c => chip(c, 'placed')));
+    bank.replaceChildren(...pool.map(c => chip(c, 'pool')));
     checkBtn.disabled = placed.length !== words.length;
   };
 
@@ -418,13 +529,13 @@ function renderListen(it){
   $('prompt').textContent = 'Послушайте и напишите предложение';
   const input = h('input', {type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Напишите услышанное'});
   const checkBtn = h('button', {class: 'primary', on: {click: () => {
-    if(S.answered) return;
+    if(locked() || !norm(input.value)) return;
     const ok = norm(input.value) === norm(it.sentence);
     input.disabled = true;
     checkBtn.disabled = true;
     judge(ok, it);
   }}}, 'Проверить');
-  input.addEventListener('keydown', e => { if(e.key === 'Enter' && !checkBtn.disabled) checkBtn.click(); });
+  input.addEventListener('keydown', e => { if(e.key === 'Enter') checkBtn.click(); });
   $('task').append(
     h('button', {class: 'primary', on: {click: () => speak(it.sentence)}}, '▶ Слушать'),
     h('div', {style: 'height:10px'}),
@@ -451,6 +562,7 @@ function judge(ok, it){
     S.best = Math.max(S.best, S.streak);
     const gain = 10 + Math.min(S.streak - 1, 4) * 2;
     S.earned += gain;
+    S.gained += gain;
     feedback(true, `Верно! +$${gain}`, it);
   } else {
     S.streak = 0;
@@ -461,6 +573,7 @@ function judge(ok, it){
   }
   $('bar').style.width = (S.done / S.total * 100) + '%';
   $('btnNext').classList.remove('hidden');
+  persistSession();
   updateStats();
 }
 
@@ -474,40 +587,48 @@ function feedback(ok, msg, it){
   fb.replaceChildren(h('div', null, msg), ...extra);
 }
 
-function saveSession(){
+// Сохраняет прогресс сразу после каждого ответа. Перечитывает хранилище, чтобы не затереть данные другой вкладки.
+function persistSession(){
   if(!S) return;
-  const prev = progress[S.pack.id] || {missed: [], plays: 0, bestFirstTry: 0};
-  const missed = [...new Set([...S.misses, ...prev.missed.filter(i => !S.solved[i])])];
-  const complete = S.done === S.total;
-  progress[S.pack.id] = {
-    missed,
-    plays: prev.plays + (complete ? 1 : 0),
-    bestFirstTry: complete ? Math.max(prev.bestFirstTry, S.firstTry) : prev.bestFirstTry
+  const stored = sanitizeProgress(store.get('md_progress', {}));
+  const prev = stored[S.pack.id] || {missed: [], plays: 0, bestFirstTry: 0};
+  stored[S.pack.id] = {
+    ...prev,
+    missed: [...new Set([...S.misses, ...prev.missed.filter(i => !S.solved[i])])]
   };
-  capital += S.earned;
-  S.earned = 0;
+  progress = stored;
   store.set('md_progress', progress);
+  capital = readCapital() + S.earned;
   store.set('md_capital', capital);
+  S.earned = 0;
 }
 
 function finish(){
-  const earned = S.earned;
-  saveSession();
+  const earned = S.gained;
+  persistSession();
+  const entry = progress[S.pack.id];
+  entry.plays += 1;
+  entry.bestFirstTry = Math.max(entry.bestFirstTry, S.firstTry);
+  store.set('md_progress', progress);
   $('result').replaceChildren(
     h('p', {class: 'pack-title'}, S.pack.title),
     h('p', null, `С первого раза: ${S.firstTry} из ${S.total}`),
     h('p', null, `Заработано: $${earned}. Лучшая серия: ${S.best}.`),
     S.misses.length
-      ? h('p', {class: 'muted'}, `Ошибок было: ${S.misses.length}. Эти задания пойдут первыми в следующий раз.`)
+      ? h('p', {class: 'muted'}, `Заданий с ошибкой: ${S.misses.length}. Они пойдут первыми в следующий раз.`)
       : h('p', {class: 'muted'}, 'Без ошибок.')
   );
   show('scrDone');
 }
 
-$('btnBack').onclick = () => { saveSession(); show('scrHome'); };
+$('btnBack').onclick = () => { persistSession(); show('scrHome'); };
 $('btnHome').onclick = () => show('scrHome');
 $('btnAgain').onclick = () => { if(S) startPack(S.pack); };
 $('btnNext').onclick = nextItem;
+
+// Сохраняем, если вкладку убрали или закрыли посреди сессии.
+document.addEventListener('visibilitychange', () => { if(document.hidden) persistSession(); });
+window.addEventListener('pagehide', persistSession);
 
 show('scrHome');
 </script>
